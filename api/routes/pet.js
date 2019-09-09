@@ -15,10 +15,10 @@ router.post('/', (req, res, next) => {
 		age: req.body.age,
 		size: req.body.size,
 		color: req.body.color,
-		goodWith: req.body.goodWith,
+		goodWith: [req.body.goodWith],
 		description: req.body.description,
 		health: req.body.health,
-		photo: req.body.photo,
+		photo: [req.body.photo],
 		active: true,
 	}
 
@@ -30,7 +30,8 @@ router.post('/', (req, res, next) => {
 		return ownerRef.update({pet: FieldValue.arrayUnion(newPetRef.id)}, { merge: true });
     }).then(ret => {
     	res.status(200).json({
-			status: 'success'
+			status: 'success',
+			data: {id: newPetRef.id}
 		});
     }).catch(err => {
     	console.log(err);
@@ -56,10 +57,12 @@ router.post('/', (req, res, next) => {
 	*/
 });
 
-router.get('/:petId', (req, res, next) => {
+router.get('/spec/:petId', (req, res, next) => {
 	const objectId = req.params.petId;
 	var newPetRef = db.collection('pets').doc(objectId);
-	newPetRef.get().then(ret => {
+	newPetRef.get().then({
+
+	}).then(ret => {
 		if(!ret.exists){
 			res.status(400).json({
 				status: 'fail',
@@ -80,20 +83,136 @@ router.get('/:petId', (req, res, next) => {
     });
 });
 
-router.delete('/:petId', (req, res, next) => {
-	const objectId = req.params.petId;
-	var newPetRef = db.collection('pets').doc(objectId);
-	newPetRef.delete().then(ret => {
+router.get('/like', (req, res, next) => {
+	var guestRef = db.collection('guest').doc(req.query.guestId);
+	console.log(req.query.guestId, req.query.petId)
+	guestRef.update({like: FieldValue.arrayUnion(req.query.petId)}, { merge: true })
+		.then(ret => {
+			res.status(200).json({
+				status: 'success'
+			});
+		}).catch(err => {
+    		console.log(err);
+	    	res.status(400).json({
+				status: 'fail',
+				error: err
+			});
+    	});;
+});
+
+router.get('/dislike', (req, res, next) => {
+	var guestRef = db.collection('guest').doc(req.query.guestId);
+	console.log(req.query.guestId, req.query.petId)
+	guestRef.update({like: FieldValue.arrayRemove(req.query.petId)}, { merge: true })
+		.then(ret => {
+			res.status(200).json({
+				status: 'success'
+			});
+		}).catch(err => {
+    		console.log(err);
+	    	res.status(400).json({
+				status: 'fail',
+				error: err
+			});
+    	});;
+});
+
+router.get('/allLike', (req, res, next) => {
+	var guestRef = db.collection('guest').doc(req.query.guestId);
+	guestRef.get().then(ret => {
+		id = ret.data().like
+		const refs = id.map(idd => db.doc(`pets/${idd}`))
+
+		return db.getAll(...refs);
+	}).then(users => {
+		arr = users.map(doc => doc.data())
 		res.status(200).json({
-			status: 'success'
+			status: 'success',
+			data: arr
 		});
-	}).catch(err => {
+	});
+});
+
+
+// router.delete('/:petId', (req, res, next) => {
+// 	const objectId = req.params.petId;
+// 	var newPetRef = db.collection('pets').doc(objectId);
+// 	newPetRef.delete().then(ret => {
+// 		res.status(200).json({
+// 			status: 'success'
+// 		});
+// 	}).catch(err => {
+//     	console.log(err);
+//     	res.status(400).json({
+// 			status: 'fail',
+// 			error: err
+// 		});
+//     });
+// });
+
+router.post('/event', (req, res, next) => {
+	const newEvent = {
+		name: req.body.name,
+		location: req.body.location,
+		pets: req.body.pets,
+		description: req.body.description,
+		owner:req.body.ownerId
+	}
+	console.log(newEvent);
+	var newEventRef = db.collection('event').doc();
+	var ownerRef = db.collection('owners').doc(req.body.ownerId);
+
+	newEventRef.set(newEvent).then(ret => {
+		console.log(newEventRef.id);
+		return ownerRef.update({event: FieldValue.arrayUnion(newEventRef.id)}, { merge: true });
+    }).then(ret => {
+    	res.status(200).json({
+			status: 'success',
+			data: {id: newEventRef.id}
+		});
+    }).catch(err => {
     	console.log(err);
     	res.status(400).json({
 			status: 'fail',
 			error: err
 		});
     });
+});
+
+router.get('/AllPet', (req, res, next) => {
+	var guestRef = db.collection('owners').doc(req.query.ownerId);
+	var id;
+	guestRef.get().then(ret => {
+		id = ret.data().pet
+		const refs = id.map(idd => db.doc(`pets/${idd}`))
+		return db.getAll(...refs);
+	}).then(users => {
+		arr = users.map(doc => doc.data())
+		res.status(200).json({
+			status: 'success',
+			data: arr.map((item, index) => {
+				return {
+					data: item,
+					id: id[index]
+				}
+			})
+		});
+	});
+});
+
+router.get('/AllEvent', (req, res, next) => {
+	var guestRef = db.collection('owners').doc(req.query.ownerId);
+	guestRef.get().then(ret => {
+		id = ret.data().event
+		const refs = id.map(idd => db.doc(`event/${idd}`))
+		return db.getAll(...refs);
+	}).then(users => {
+		arr = users.map(doc => doc.data())
+		res.status(200).json({
+			status: 'success',
+			data: arr
+		});
+	});
 });
 
 module.exports = router;
